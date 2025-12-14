@@ -54,13 +54,13 @@ export default function LandingPage() {
           <h1 className="text-4xl md:text-6xl font-bold text-slate-900 mb-6 leading-tight">
             평범한 일상 속에<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">
-              새로운 기회를 발견해보세요.
+              새로운 기회를 발견하세요.
             </span>
           </h1>
 
           <p className="text-xl text-slate-600 mb-8 max-w-2xl mx-auto leading-relaxed">
             매일 겪는 불편함을 관찰하고 기록하면,<br />
-            그 안에서 사업 아이디어가 보이기 시작합니다.
+            그 안에서 새로운 기회가 보이기 시작합니다.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -119,16 +119,16 @@ export default function LandingPage() {
               <div className="text-3xl mb-4">👀</div>
               <h3 className="text-xl font-bold mb-3">관찰의 힘</h3>
               <p className="text-slate-400 leading-relaxed">
-                얀 칩체이스는 전 세계를 돌아다니며 사람들의 <strong className="text-white">평범한 일상</strong>을 관찰합니다.
+                얀 칩체이스는 전 세계를 돌아다니며 <strong className="text-white">사람들의 평범한 일상</strong>을 관찰합니다.
                 휴대전화를 쓸 때 불편해하는 모습, 지갑에서 현금을 찾느라 헤매는 모습...
-                이런 작은 불편함에서 <strong className="text-white">새로운 기회가</strong>보인다고 말합니다.
+                이런 <strong className="text-white">작은 불편함에서 새로운 기회가</strong>보인다고 말합니다.
               </p>
             </div>
             <div className="p-6 bg-slate-800 rounded-xl border border-slate-700">
               <div className="text-3xl mb-4">🔍</div>
               <h3 className="text-xl font-bold mb-3">Why를 찾아라</h3>
               <p className="text-slate-400 leading-relaxed">
-                단순히 <strong className="text-white">왜</strong> 무엇을" 하는지가 아니라, "왜" 그렇게 하는지 이해 <strong className="text-white">왜</strong> 해야 합니다.
+                단순히 <strong className="text-white">"무엇을" 하는지가 아니라</strong> <strong className="text-white">"왜" 그렇게 하는지</strong> 이해해야 합니다.
                 사람들이 왜 불편해하는지, 왜 그런 행동을 하는지 근본 원인을 파악하면 진짜 기회가 발견할 수 있습니다.
               </p>
             </div>
@@ -137,15 +137,15 @@ export default function LandingPage() {
               <h3 className="text-xl font-bold mb-3">한계치를 찾아라</h3>
               <p className="text-slate-400 leading-relaxed">
                 사람들은 불편해도 어느 정도까지는 참습니다.
-                바로 이 <strong className="text-white">참을 수 있는 한계선</strong>에서 새로운 제품과 서비스의 기회가 생깁니다.
+                바로 <strong className="text-white">참을 수 있는 한계선</strong>에서 <strong className="text-white">새로운 제품과 서비스의 기회</strong>가 생깁니다.
               </p>
             </div>
             <div className="p-6 bg-slate-800 rounded-xl border border-slate-700">
               <div className="text-3xl mb-4">💡</div>
               <h3 className="text-xl font-bold mb-3">본질을 꿰뚫어라</h3>
               <p className="text-slate-400 leading-relaxed">
-                "그냥 원래 그래"라고 생각하면 기회를 놓칩니다. 모두가 당연하게 여기는 것에
-                <strong className="text-white"> 정말 그래야 할까?</strong> 질문하면 혁신이 시작됩니다.
+                <strong className="text-white">그냥 원래 그래"라고 생각</strong>하면 기회를 놓칩니다.
+                모두가 당연하게 여기는 것에 <strong className="text-white">"정말 그래야 할까?"</strong> 질문하면 기회가 시작됩니다.
               </p>
             </div>
           </div>
@@ -153,7 +153,7 @@ export default function LandingPage() {
           {/* Quote */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-center">
             <p className="text-xl md:text-2xl font-medium leading-relaxed mb-4">
-              평범한 일상 속 불편함을 관찰하고<br />"왜?"를 물으면,<br />새로운 기회를 발견할 수 있습니다.
+              평범한 일상 속 불편함을 관찰하고<br />왜? 를 물으면,<br />새로운 기회를 발견할 수 있습니다.
             </p>
             <p className="text-blue-200">
               일상 속 기회를 잘 포착하기 위해 ProtoCheck을 만들었습니다.
