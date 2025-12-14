@@ -52,9 +52,9 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-4xl md:text-6xl font-bold text-slate-900 mb-6 leading-tight">
-            평범한 일상 속에<br />
+            평범한 일상 속,<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">
-              새로운 기회를 발견하세요.
+              기회를 발견하세요.
             </span>
           </h1>
 
