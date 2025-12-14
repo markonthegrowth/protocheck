@@ -48,18 +48,17 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-full text-sm font-medium mb-6">
             <BookOpen size={16} />
-            《관찰의 힘》에서 영감을 받은 아이디어 검증 도구
+            《관찰의 힘》 도서에서 영감을 받은 아이디어 검증 도구
           </div>
 
           <h1 className="text-4xl md:text-6xl font-bold text-slate-900 mb-6 leading-tight">
             평범한 일상 속에<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">
-              숨겨진 사업 기회
+              새로운 기회를 발견해보세요.
             </span>
           </h1>
 
           <p className="text-xl text-slate-600 mb-8 max-w-2xl mx-auto leading-relaxed">
-            혁신은 멀리 있지 않습니다.<br />
             매일 겪는 불편함을 관찰하고 기록하면,<br />
             그 안에서 사업 아이디어가 보이기 시작합니다.
           </p>
@@ -84,15 +83,15 @@ export default function LandingPage() {
           <div className="mt-12 flex items-center justify-center gap-8 text-slate-500 text-sm flex-wrap">
             <div className="flex items-center gap-2">
               <CheckCircle size={16} className="text-green-500" />
-              무료 사용
+              무료로 시작 (Google 로그인)
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle size={16} className="text-green-500" />
-              로그인 서비스 준비 중
+              내 Drive 저장 (개인정보 보호)
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle size={16} className="text-green-500" />
-              AI 패턴 분석
+              AI 패턴 분석 & MVP 지원 (준비중)
             </div>
           </div>
         </div>
@@ -121,35 +120,32 @@ export default function LandingPage() {
               <h3 className="text-xl font-bold mb-3">관찰의 힘</h3>
               <p className="text-slate-400 leading-relaxed">
                 얀 칩체이스는 전 세계를 돌아다니며 사람들의 <strong className="text-white">평범한 일상</strong>을 관찰합니다.
-                휴대전화를 받는 모습, 지갑에서 현금을 꺼내는 모습...
-                이런 사소한 행동에서 <strong className="text-white">아직 개척되지 않은 시장</strong>의 문을 찾습니다.
+                휴대전화를 쓸 때 불편해하는 모습, 지갑에서 현금을 찾느라 헤매는 모습...
+                이런 작은 불편함에서 <strong className="text-white">새로운 기회가</strong>보인다고 말합니다.
               </p>
             </div>
             <div className="p-6 bg-slate-800 rounded-xl border border-slate-700">
               <div className="text-3xl mb-4">🔍</div>
               <h3 className="text-xl font-bold mb-3">Why를 찾아라</h3>
               <p className="text-slate-400 leading-relaxed">
-                "What"과 "How"가 아닌 <strong className="text-white">"Why"</strong>를 이해하는 것이 핵심입니다.
-                사람들이 <strong className="text-white">왜</strong> 불편해하는지, <strong className="text-white">왜</strong> 그런 행동을 하는지
-                파고들면 진짜 기회가 보입니다.
+                단순히 <strong className="text-white">왜</strong> 무엇을" 하는지가 아니라, "왜" 그렇게 하는지 이해 <strong className="text-white">왜</strong> 해야 합니다.
+                사람들이 왜 불편해하는지, 왜 그런 행동을 하는지 근본 원인을 파악하면 진짜 기회가 발견할 수 있습니다.
               </p>
             </div>
             <div className="p-6 bg-slate-800 rounded-xl border border-slate-700">
               <div className="text-3xl mb-4">📍</div>
               <h3 className="text-xl font-bold mb-3">한계치를 찾아라</h3>
               <p className="text-slate-400 leading-relaxed">
-                사람들이 "참을 수 있는 최대/최소 한계"가 있습니다.
-                이 <strong className="text-white">컴포트 존의 경계</strong>에서
-                새로운 제품과 서비스의 기회가 탄생합니다.
+                사람들은 불편해도 어느 정도까지는 참습니다.
+                바로 이 <strong className="text-white">참을 수 있는 한계선</strong>에서 새로운 제품과 서비스의 기회가 생깁니다.
               </p>
             </div>
             <div className="p-6 bg-slate-800 rounded-xl border border-slate-700">
               <div className="text-3xl mb-4">💡</div>
               <h3 className="text-xl font-bold mb-3">본질을 꿰뚫어라</h3>
               <p className="text-slate-400 leading-relaxed">
-                "원래 그런 것"이라고 생각하면 본질을 놓칩니다.
-                <strong className="text-white">당연하게 여기는 것에 질문</strong>을 던지면
-                혁신의 발화점을 찾을 수 있습니다.
+                "그냥 원래 그래"라고 생각하면 기회를 놓칩니다. 모두가 당연하게 여기는 것에
+                <strong className="text-white"> 정말 그래야 할까?</strong> 질문하면 혁신이 시작됩니다.
               </p>
             </div>
           </div>
@@ -157,10 +153,10 @@ export default function LandingPage() {
           {/* Quote */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-center">
             <p className="text-xl md:text-2xl font-medium leading-relaxed mb-4">
-              "혁신의 발화점은<br />주변의 평범한 것에 있다"
+              평범한 일상 속 불편함을 관찰하고<br />"왜?"를 물으면,<br />새로운 기회를 발견할 수 있습니다.
             </p>
             <p className="text-blue-200">
-              ProtoCheck은 이 철학을 도구로 만들었습니다.
+              일상 속 기회를 잘 포착하기 위해 ProtoCheck을 만들었습니다.
             </p>
           </div>
         </div>
@@ -217,7 +213,7 @@ export default function LandingPage() {
                 step: 1,
                 title: "불편함 수집",
                 subtitle: "관찰하고 기록하라",
-                description: "출퇴근길, 점심시간, 쇼핑할 때... 일상에서 느끼는 모든 불편함을 기록하세요. \"짜증났다\", \"불편했다\", \"왜 이렇지?\" 이 모든 감정이 사업 기회의 씨앗입니다.",
+                description: "출퇴근길, 점심시간, 쇼핑할 때... 일상에서 느끼는 모든 불편함을 기록하세요. \"짜증났다\", \"불편했다\", \"왜 이렇지?\" 이 모든 감정이 기회의 씨앗입니다.",
                 tip: "💡 Tip: 카테고리별로 기록하면 나중에 패턴을 찾기 쉬워요",
                 icon: Search,
                 color: "blue"
@@ -308,28 +304,28 @@ export default function LandingPage() {
               },
               {
                 icon: Zap,
-                title: "AI 패턴 분석",
+                title: "AI 패턴 분석 (준비중)",
                 description: "수집된 불편함에서 AI가 자동으로 패턴을 찾아 사업 기회를 발굴합니다."
               },
               {
                 icon: Users,
-                title: "인터뷰 가이드",
+                title: "인터뷰 가이드 및 기록",
                 description: "어떤 질문을 해야 할지 고민 없이, 검증된 질문 가이드를 따라하세요."
               },
               {
                 icon: Search,
-                title: "온라인 리서치",
+                title: "온라인 리서치 및 기록",
                 description: "경쟁사 분석, 커뮤니티 반응, 시장 트렌드를 한 곳에서 정리하세요."
               },
               {
                 icon: Target,
-                title: "MVP 플랜 생성",
+                title: "MVP 플랜 생성 (준비중)"
                 description: "AI가 맞춤형 MVP 테스트 전략을 자동으로 생성해드립니다."
               },
               {
                 icon: CheckCircle,
-                title: "자동 저장",
-                description: "모든 데이터가 자동 저장됩니다. 언제든 이어서 관찰하세요."
+                title: "내 드라이브에 자동/수동저장",
+                description: "모든 데이터가 내 구글 드라이브에 자동 저장됩니다. 소중한 나의 기회를 안전하게 보호하세요"
               }
             ].map((feature, idx) => (
               <div key={idx} className="p-6 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-lg transition">
@@ -379,11 +375,11 @@ export default function LandingPage() {
             {[
               {
                 q: "정말 무료인가요?",
-                a: "네, 기본 기능은 모두 무료입니다. AI 분석은 하루 3회까지 무료로 사용할 수 있습니다."
+                a: "네, 기본 기능은 모두 무료입니다. 구글계정으로 쉽게 로그인하여 사용하실 수 있습니다."
               },
               {
                 q: "《관찰의 힘》 책을 읽어야 하나요?",
-                a: "아니요, 책을 읽지 않아도 ProtoCheck을 사용할 수 있습니다. 하지만 책을 읽으면 관찰의 철학을 더 깊이 이해할 수 있어요. 추천드립니다!"
+                a: "아니요, 하지만 책을 읽으면 관찰의 철학을 더 깊이 이해할 수 있어요. 추천드립니다!"
               },
               {
                 q: "어떤 불편함을 기록해야 하나요?",
@@ -391,7 +387,7 @@ export default function LandingPage() {
               },
               {
                 q: "데이터는 안전한가요?",
-                a: "현재 모든 데이터는 사용자의 브라우저에만 저장됩니다. 서버로 전송되지 않아 개인정보 걱정이 없습니다."
+                a: "현재 모든 데이터는 사용자의 구글드라이브 내 폴더 (Protocheck)에 저장됩니다. 서버로 전송되지 않아 개인정보 걱정이 없습니다."
               }
             ].map((faq, idx) => (
               <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden">
@@ -413,27 +409,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Book Reference */}
-      <section className="py-16 px-4 bg-amber-50">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center gap-8">
-            <div className="text-6xl">📚</div>
-            <div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">
-                《관찰의 힘》 Hidden in Plain Sight
-              </h3>
-              <p className="text-slate-600 mb-2">
-                얀 칩체이스, 사이먼 슈타인하트 지음
-              </p>
-              <p className="text-sm text-slate-500">
-                ProtoCheck은 이 책의 철학에서 영감을 받아 만들었습니다.<br />
-                관찰의 깊이를 더하고 싶다면 일독을 권합니다.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* CTA Section */}
       <section className="py-20 px-4 bg-gradient-to-r from-blue-500 to-purple-600">
         <div className="max-w-3xl mx-auto text-center">
@@ -442,7 +417,7 @@ export default function LandingPage() {
           </h2>
           <p className="text-xl text-blue-100 mb-8">
             지금 느낀 불편함이<br />
-            내일의 사업 아이디어가 됩니다.
+            내일의 기회가 되어 찾아옵니다.
           </p>
           <a
             href="/my-project"
