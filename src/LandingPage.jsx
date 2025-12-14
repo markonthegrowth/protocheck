@@ -319,7 +319,7 @@ export default function LandingPage() {
               },
               {
                 icon: Target,
-                title: "MVP 플랜 생성 (준비중)"
+                title: "MVP 플랜 생성 (준비중)",
                 description: "AI가 맞춤형 MVP 테스트 전략을 자동으로 생성해드립니다."
               },
               {
