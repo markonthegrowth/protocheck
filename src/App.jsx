@@ -1,14 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Download, Plus, Trash2, CheckCircle, TrendingUp, Users, Search, BookOpen, Target, MessageCircle, Lightbulb, Rocket, Edit2, Image, Video, Settings } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Calendar, Download, Plus, Trash2, CheckCircle, TrendingUp, Users, Search, BookOpen, Target, MessageCircle, Lightbulb, Rocket, Edit2, Image, Video, Settings, LogOut, ArrowLeft } from 'lucide-react';
+import { loginWithGoogle, logout as firebaseLogout, getSavedUserInfo, isLoggedIn, getAccessToken, onAuthChange } from './utils/firebaseAuth';
+import { listProjects as listDriveProjects, loadProject as loadDriveProject, saveProject as saveDriveProject, deleteProject as deleteDriveProject, backupAllProjects as backupDriveProjects } from './utils/googleDrive';
 
-export default function ObservationTracker({ initialTab = 1 }) {
+export default function ObservationTracker() {
+  const { projectId } = useParams();
+  const navigate = useNavigate();
+
+  // Google 로그인 상태
+  const [user, setUser] = useState(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   // 프로젝트 관리
   const [projects, setProjects] = useState([]);
   const [currentProjectId, setCurrentProjectId] = useState(null);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectToDelete, setProjectToDelete] = useState(null);
-  
-  // 설정 패널
+
+  // 설정 패널$
   const [showSettings, setShowSettings] = useState(false);
   const [userName, setUserName] = useState('');
   const [autoBackup, setAutoBackup] = useState(false);
@@ -16,21 +26,21 @@ export default function ObservationTracker({ initialTab = 1 }) {
   const [tempUserName, setTempUserName] = useState('');
   const [editingProjectId, setEditingProjectId] = useState(null);
   const [tempProjectName, setTempProjectName] = useState('');
-  
+
   // 새 프로젝트 생성 모달
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
-  
+
   // AI 사용 횟수 제한 (하루 3회)
   const AI_DAILY_LIMIT = 3;
-  
+
   const getAIUsageToday = () => {
     const stored = localStorage.getItem('aiUsage');
     if (!stored) return { date: '', count: 0 };
-    
+
     const usage = JSON.parse(stored);
     const today = new Date().toDateString();
-    
+
     // 날짜가 다르면 리셋
     if (usage.date !== today) {
       return { date: today, count: 0 };
@@ -56,21 +66,24 @@ export default function ObservationTracker({ initialTab = 1 }) {
   const canUseAI = () => {
     return getRemainingAIUsage() > 0;
   };
-  
-  const [activeWeek, setActiveWeek] = useState(initialTab);
+
+  const [activeWeek, setActiveWeek] = useState(1);
   const [observations, setObservations] = useState([]);
   const [patterns, setPatterns] = useState([]);
-  
+
+  const [lastSaved, setLastSaved] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+
   // 아이디어 관련 state
   const [ideas, setIdeas] = useState([]);
   const [selectedIdeaId, setSelectedIdeaId] = useState(null);
   const [showIdeaModal, setShowIdeaModal] = useState(false);
   const [newIdea, setNewIdea] = useState({ name: '', description: '' });
   const [editingIdeaId, setEditingIdeaId] = useState(null);
-  
+
   // 검증 데이터 (아이디어별로 저장)
   const [validationData, setValidationData] = useState({});
-  
+
   const [newObs, setNewObs] = useState('');
   const [showGuide, setShowGuide] = useState(true);
   const [categories, setCategories] = useState(['직장 업무', '개인 시간 관리', '소비 패턴']);
@@ -80,11 +93,11 @@ export default function ObservationTracker({ initialTab = 1 }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [aiPatterns, setAiPatterns] = useState([]);
-  
+
   // 빠른 카테고리 추가 모달
   const [showQuickCategoryModal, setShowQuickCategoryModal] = useState(false);
   const [quickCategoryName, setQuickCategoryName] = useState('');
-  
+
   // MVP AI 추천 관련
   const [mvpPlan, setMvpPlan] = useState(null);
   const [isGeneratingMVP, setIsGeneratingMVP] = useState(false);
@@ -93,10 +106,10 @@ export default function ObservationTracker({ initialTab = 1 }) {
   const initDB = () => {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open('ObservationTrackerDB', 1);
-      
+
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
-      
+
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
         if (!db.objectStoreNames.contains('projects')) {
@@ -107,49 +120,116 @@ export default function ObservationTracker({ initialTab = 1 }) {
   };
 
   const saveProjectToDB = async (project) => {
+    console.log('🔔 saveProjectToDB 호출됨:', project.name);
+
     try {
+      if (user) {
+        console.log('✅ 로그인 상태, Drive에 저장 시작');
+        // 구글 드라이브에 저장
+        const result = await saveDriveProject(project);
+        console.log('✅ Drive 저장 결과:', result);
+        // Drive에서 반환된 folderId 저장
+        if (result && result.folderId) {
+          project.driveFileId = result.folderId;
+          console.log('✅ FolderId 저장:', result.folderId);
+        }
+      } else {
+        console.log('💾 로그아웃 상태, IndexDB에 저장');
+        // 로컬 IndexedDB에 저장
+        const db = await initDB();
+        const transaction = db.transaction(['projects'], 'readwrite');
+        const store = transaction.objectStore('projects');
+        store.put(project);
+        return new Promise((resolve, reject) => {
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error);
+        });
+      }
+    } catch (error) {
+      console.error('❌ 프로젝트 저장 실패:', error);
+      alert('프로젝트 저장에 실패했습니다: ' + error.message);
+    }
+  };
+
+  const loadProjectsFromDrive = async () => {
+    try {
+      console.log('📂 Drive에서 프로젝트 로딩 중...');
+      const folders = await listDriveProjects();
+      const projects = [];
+
+      for (const folder of folders) {
+        try {
+          const project = await loadDriveProject(folder.id);
+          if (project) {
+            project.driveFileId = folder.id; // Drive 폴더 ID 저장
+            projects.push(project);
+          }
+        } catch (err) {
+          console.error('프로젝트 로딩 실패:', folder.name, err);
+        }
+      }
+
+      console.log(`✅ Drive에서 ${projects.length}개 프로젝트 로드 완료`);
+      return projects;
+    } catch (error) {
+      console.error('Drive 프로젝트 로딩 실패:', error);
+      return [];
+    }
+  };
+
+  const loadProjectsFromIndexDB = async () => {
+    try {
+      console.log('💾 IndexDB에서 프로젝트 로딩 중...');
       const db = await initDB();
-      const transaction = db.transaction(['projects'], 'readwrite');
+      const transaction = db.transaction(['projects'], 'readonly');
       const store = transaction.objectStore('projects');
-      store.put(project);
+      const request = store.getAll();
+
       return new Promise((resolve, reject) => {
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
+        request.onsuccess = () => {
+          console.log(`✅ IndexDB에서 ${request.result.length}개 프로젝트 로드 완료`);
+          resolve(request.result);
+        };
+        request.onerror = () => reject(request.error);
       });
     } catch (error) {
-      console.error('프로젝트 저장 실패:', error);
+      console.error('IndexDB 프로젝트 로딩 실패:', error);
+      return [];
     }
   };
 
   const loadProjectsFromDB = async () => {
     try {
-      const db = await initDB();
-      const transaction = db.transaction(['projects'], 'readonly');
-      const store = transaction.objectStore('projects');
-      const request = store.getAll();
-      
-      return new Promise((resolve, reject) => {
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
+      if (user) {
+        return await loadProjectsFromDrive();
+      } else {
+        return await loadProjectsFromIndexDB();
+      }
     } catch (error) {
       console.error('프로젝트 로딩 실패:', error);
       return [];
     }
   };
 
-  const deleteProjectFromDB = async (projectId) => {
+  const deleteProjectFromDB = async (project) => {
     try {
-      const db = await initDB();
-      const transaction = db.transaction(['projects'], 'readwrite');
-      const store = transaction.objectStore('projects');
-      store.delete(projectId);
-      return new Promise((resolve, reject) => {
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-      });
+      if (user && project.driveFileId) {
+        // 구글 드라이브에서 삭제
+        await deleteDriveProject(project.driveFileId);
+      } else {
+        // 로컬 IndexedDB에서 삭제
+        const db = await initDB();
+        const transaction = db.transaction(['projects'], 'readwrite');
+        const store = transaction.objectStore('projects');
+        store.delete(project.id);
+        return new Promise((resolve, reject) => {
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error);
+        });
+      }
     } catch (error) {
       console.error('프로젝트 삭제 실패:', error);
+      throw error;
     }
   };
 
@@ -173,13 +253,13 @@ export default function ObservationTracker({ initialTab = 1 }) {
         mvpPlan: null
       }
     };
-    
+
     setProjects(prev => [...prev, newProject]);
     setCurrentProjectId(newProject.id);
     loadProjectData(newProject);
     await saveProjectToDB(newProject);
     setActiveWeek(1);
-    
+
     return newProject;
   };
 
@@ -198,11 +278,25 @@ export default function ObservationTracker({ initialTab = 1 }) {
   };
 
   // 현재 프로젝트 저장
-  const saveCurrentProject = async () => {
-    if (!currentProjectId) return;
-    
+  const saveCurrentProject = async (isManual = false) => {
+    if (isManual) {
+      console.log('📌 수동 저장 시작...');
+    } else {
+      console.log('💿 자동 저장 시작...');
+    }
+
+    if (!currentProjectId) {
+      console.log('❌ currentProjectId 없음');
+      return;
+    }
+
     const currentProject = projects.find(p => p.id === currentProjectId);
-    if (!currentProject) return;
+    if (!currentProject) {
+      console.log('❌ 현재 프로젝트를 찾을 수 없음');
+      return;
+    }
+
+    console.log('✅ 현재 프로젝트 찾음:', currentProject.name);
 
     const updatedProject = {
       ...currentProject,
@@ -221,8 +315,31 @@ export default function ObservationTracker({ initialTab = 1 }) {
       }
     };
 
+    console.log('📦 업데이트된 프로젝트 준비 완료:', {
+      name: updatedProject.name,
+      observationsCount: updatedProject.data.observations.length
+    });
+
     setProjects(projects.map(p => p.id === currentProjectId ? updatedProject : p));
-    await saveProjectToDB(updatedProject);
+
+    setIsSaving(true);
+    try {
+      await saveProjectToDB(updatedProject);
+      setLastSaved(new Date());
+      console.log('✅ 저장 완료:', new Date().toLocaleTimeString('ko-KR'));
+    } catch (error) {
+      console.error('❌ 저장 실패:', error);
+      if (isManual) {
+        alert('저장에 실패했습니다: ' + error.message);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 수동 저장 핸들러
+  const handleManualSave = () => {
+    saveCurrentProject(true);
   };
 
   // 프로젝트 전환
@@ -230,7 +347,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
     if (currentProjectId) {
       saveCurrentProject();
     }
-    
+
     const project = projects.find(p => p.id === projectId);
     if (project) {
       setCurrentProjectId(projectId);
@@ -241,7 +358,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
   // 프로젝트 이름 변경
   const renameProject = async (projectId, newName) => {
     let updatedProject = null;
-    
+
     setProjects(prev => {
       const updated = prev.map(p => {
         if (p.id === projectId) {
@@ -252,7 +369,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
       });
       return updated;
     });
-    
+
     // 약간의 지연 후 DB 업데이트
     setTimeout(async () => {
       if (updatedProject) {
@@ -286,36 +403,29 @@ export default function ObservationTracker({ initialTab = 1 }) {
 
   const deleteProject = async () => {
     const projectId = projectToDelete;
-    console.log('삭제 시도:', projectId);
-    
+
     if (!projectId) {
-      console.log('프로젝트 ID 없음');
+      return;
+    }
+
+    const projectToRemove = projects.find(p => p.id === projectId);  // ← 추가: 프로젝트 객체 찾기
+    if (!projectToRemove) {
       return;
     }
 
     try {
-      console.log('DB에서 삭제 시작...');
-      await deleteProjectFromDB(projectId);
-      console.log('DB 삭제 완료');
-      
-      // 현재 프로젝트인지 확인
+      await deleteProjectFromDB(projectToRemove);  // ← 변경: 전체 객체 전달 (driveFileId 포함)
+
       const isCurrentProject = currentProjectId === projectId;
-      console.log('현재 프로젝트인가?', isCurrentProject);
-      
-      // 업데이트할 프로젝트 리스트
       const remainingProjects = projects.filter(p => p.id !== projectId);
-      console.log('남은 프로젝트 수:', remainingProjects.length);
-      
+
       setProjects(remainingProjects);
-      
-      // 현재 프로젝트였다면 다른 프로젝트로 전환
+
       if (isCurrentProject) {
         if (remainingProjects.length > 0) {
-          console.log('다른 프로젝트로 전환:', remainingProjects[0].name);
           setCurrentProjectId(remainingProjects[0].id);
           loadProjectData(remainingProjects[0]);
         } else {
-          console.log('프로젝트가 모두 삭제됨');
           setCurrentProjectId(null);
           setObservations([]);
           setPatterns([]);
@@ -329,8 +439,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
           setActiveWeek(1);
         }
       }
-      
-      console.log('삭제 완료!');
+
       setProjectToDelete(null);
       alert('프로젝트가 삭제되었습니다.');
     } catch (error) {
@@ -343,6 +452,49 @@ export default function ObservationTracker({ initialTab = 1 }) {
   const cancelDelete = () => {
     console.log('삭제 취소됨');
     setProjectToDelete(null);
+  };
+
+  // 구글 로그인 처리 (Firebase Redirect)
+  const handleGoogleLogin = async () => {
+    setIsLoggingIn(true);
+
+    try {
+      // 리다이렉트 방식으로 로그인 시작
+      await loginWithGoogle();
+      // 사용자는 Google 로그인 페이지로 리다이렉트됨
+    } catch (error) {
+      console.error('로그인 실패:', error);
+      alert('로그인에 실패했습니다: ' + error.message);
+      setIsLoggingIn(false);
+    }
+  };
+
+  // 구글 로그아웃 처리 (Firebase)
+  const handleGoogleLogout = async () => {
+    if (!confirm('로그아웃하시겠습니까? 로컬 데이터는 유지됩니다.')) {
+      return;
+    }
+
+    try {
+      await firebaseLogout();
+      setUser(null);
+
+      // 로컬 데이터로 전환
+      const loadedProjects = await loadProjectsFromDB();
+      setProjects(loadedProjects);
+
+      if (loadedProjects.length > 0) {
+        setCurrentProjectId(loadedProjects[0].id);
+        loadProjectData(loadedProjects[0]);
+      } else {
+        await createNewProject('첫 번째 프로젝트');
+      }
+
+      alert('로그아웃되었습니다. 로컬 데이터로 전환됩니다.');
+    } catch (error) {
+      console.error('로그아웃 실패:', error);
+      alert('로그아웃에 실패했습니다.');
+    }
   };
 
   // 설정 관리
@@ -405,7 +557,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
       alert('프로젝트 이름을 입력해주세요.');
       return;
     }
-    
+
     await createNewProject(newProjectName.trim());
     setShowNewProjectModal(false);
     setNewProjectName('');
@@ -418,36 +570,48 @@ export default function ObservationTracker({ initialTab = 1 }) {
     localStorage.setItem('autoBackup', newValue.toString());
   };
 
-  const backupAllProjects = () => {
+  const backupAllProjects = async () => {  // ← async 추가
     if (projects.length === 0) {
       alert('백업할 프로젝트가 없습니다.');
       return;
     }
 
-    const backupData = {
-      version: '1.0',
-      backupDate: new Date().toISOString(),
-      userName: userName,
-      projects: projects,
-      categories: categories,
-      exportDate: new Date().toISOString()
-    };
+    try {  // ← try-catch 추가
+      if (user) {  // ← 로그인 상태 확인 추가
+        // Google Drive에서 백업
+        await backupDriveProjects();
+        alert('Google Drive의 모든 프로젝트가 백업되었습니다!');
+      } else {
+        // 로컬 백업
+        const backupData = {
+          version: '1.0',
+          backupDate: new Date().toISOString(),
+          userName: userName,
+          projects: projects,
+          categories: categories,
+          exportDate: new Date().toISOString()
+        };
 
-    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `전체백업-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    
-    alert('모든 프로젝트가 백업되었습니다!');
+        const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `전체백업-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+
+        alert('모든 프로젝트가 백업되었습니다!');
+      }
+    } catch (error) {  // ← 에러 처리 추가
+      console.error('백업 실패:', error);
+      alert('백업에 실패했습니다: ' + error.message);
+    }
   };
 
   const calculateStorageSize = () => {
     const dataSize = JSON.stringify(projects).length;
     const sizeInKB = (dataSize / 1024).toFixed(2);
     const sizeInMB = (dataSize / (1024 * 1024)).toFixed(2);
-    
+
     if (dataSize < 1024) {
       return `${dataSize} bytes`;
     } else if (dataSize < 1024 * 1024) {
@@ -487,7 +651,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
       setActiveWeek(1);
 
       alert('모든 데이터가 삭제되었습니다.');
-      
+
       // 새 프로젝트 자동 생성
       await createNewProject('첫 번째 프로젝트');
     } catch (error) {
@@ -510,51 +674,102 @@ export default function ObservationTracker({ initialTab = 1 }) {
     }
   }, [autoBackup, projects]);
 
-  // 초기 로딩
+  // 인증 상태 감지 (Firebase)
+  useEffect(() => {
+    const unsubscribe = onAuthChange((user) => {
+      if (user) {
+        setUser(user);
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 초기 로딩 + 리다이렉트 결과 처리
   useEffect(() => {
     const loadInitialData = async () => {
-      // 프로젝트 로딩
-      const loadedProjects = await loadProjectsFromDB();
-      
-      if (loadedProjects.length > 0) {
-        setProjects(loadedProjects);
-        const lastProject = loadedProjects[loadedProjects.length - 1];
-        setCurrentProjectId(lastProject.id);
-        loadProjectData(lastProject);
-      } else {
-        await createNewProject('첫 번째 프로젝트');
+      console.log('🚀 앱 초기화 시작...');
+
+      // 로그인 확인
+      if (!isLoggedIn()) {
+        console.log('❌ 로그인 안 됨, /login으로 이동');
+        navigate('/login', { replace: true });
+        return;
       }
-      
+
+      let currentUser = getSavedUserInfo();
+      if (currentUser) {
+        console.log('✅ 로그인 상태:', currentUser.email);
+        setUser(currentUser);
+      }
+
+      // 프로젝트 로딩
+      console.log('📂 프로젝트 로딩 중... ID:', projectId);
+      const loadedProjects = await loadProjectsFromDrive();
+      setProjects(loadedProjects);
+
+      // URL의 projectId에 해당하는 프로젝트 찾기
+      const targetProject = loadedProjects.find(p => p.id === projectId);
+
+      if (!targetProject) {
+        console.log('❌ 프로젝트를 찾을 수 없음, /my-project로 이동');
+        navigate('/my-project', { replace: true });
+        return;
+      }
+
+      // 프로젝트 로드
+      setCurrentProjectId(targetProject.id);
+      loadProjectData(targetProject);
+      console.log('✅ 프로젝트 로드 완료:', targetProject.name);
+
       // 사용자 설정 로딩
       const savedUserName = localStorage.getItem('userName');
       const savedAutoBackup = localStorage.getItem('autoBackup');
-      
+
       if (savedUserName) {
         setUserName(savedUserName);
         setTempUserName(savedUserName);
         setIsEditingName(false);
       } else {
-        setIsEditingName(true); // 이름이 없으면 편집 모드로 시작
+        setIsEditingName(true);
       }
-      
+
       if (savedAutoBackup) setAutoBackup(savedAutoBackup === 'true');
-      
+
       setIsLoadingProjects(false);
+      console.log('✅ 앱 초기화 완료');
     };
 
     loadInitialData();
-  }, []);
+  }, [projectId, navigate]);
+
 
   // 자동 저장 (데이터 변경 시)
   useEffect(() => {
-    if (!isLoadingProjects && currentProjectId) {
-      const timeoutId = setTimeout(() => {
-        saveCurrentProject();
-      }, 1000); // 1초 debounce
+    console.log('🔄 자동 저장 체크:', {
+      isLoadingProjects,
+      currentProjectId,
+      user: user ? '로그인됨' : '로그아웃',
+      observationsCount: observations.length
+    });
 
-      return () => clearTimeout(timeoutId);
+    if (!isLoadingProjects && currentProjectId) {
+      console.log('⏱️ 10분 후 자동 저장 예약됨');
+      const timeoutId = setTimeout(() => {
+        console.log('💾 자동 저장 실행!');
+        saveCurrentProject();
+      }, 600000); // 10분 600000ms
+
+      return () => {
+        console.log('🚫 자동 저장 취소 (새로운 변경 감지)');
+        clearTimeout(timeoutId);
+      };
+    } else {
+      console.log('⏸️ 자동 저장 건너뜀 (조건 미충족)');
     }
-  }, [observations, patterns, categories, aiPatterns, analysisComplete, ideas, selectedIdeaId, validationData, mvpPlan, activeWeek]);
+  }, [observations, patterns, categories, aiPatterns, analysisComplete, ideas, selectedIdeaId, validationData, mvpPlan, activeWeek, isLoadingProjects, currentProjectId, projects]);
 
   // 불편함 기록
   const addObservation = () => {
@@ -638,8 +853,8 @@ export default function ObservationTracker({ initialTab = 1 }) {
       return;
     }
 
-    const filteredObs = selectedAnalysisCategory === '전체' 
-      ? observations 
+    const filteredObs = selectedAnalysisCategory === '전체'
+      ? observations
       : observations.filter(obs => obs.category === selectedAnalysisCategory);
 
     if (filteredObs.length < 3) {
@@ -652,7 +867,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
 
     try {
       const observationTexts = filteredObs.map(obs => obs.text).join('\n- ');
-      
+
       const prompt = `다음은 사용자가 "${selectedAnalysisCategory}" 영역에서 기록한 불편함 리스트입니다:
 
 - ${observationTexts}
@@ -695,11 +910,11 @@ export default function ObservationTracker({ initialTab = 1 }) {
 
       const data = await response.json();
       let responseText = data.result;
-      
+
       responseText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      
+
       const result = JSON.parse(responseText);
-      
+
       const newPatterns = result.patterns.map(p => ({
         id: Date.now() + Math.random(),
         name: p.name,
@@ -712,10 +927,10 @@ export default function ObservationTracker({ initialTab = 1 }) {
       setAiPatterns(newPatterns);
       setPatterns(newPatterns);
       setAnalysisComplete(true);
-      
+
       // 사용 횟수 증가
       incrementAIUsage();
-      
+
     } catch (error) {
       console.error("AI 분석 오류:", error);
       alert('패턴 분석 중 오류가 발생했습니다. 다시 시도해주세요.');
@@ -730,11 +945,11 @@ export default function ObservationTracker({ initialTab = 1 }) {
       alert('아이디어 이름을 입력해주세요.');
       return;
     }
-    
+
     if (editingIdeaId) {
       // 수정
-      setIdeas(ideas.map(idea => 
-        idea.id === editingIdeaId 
+      setIdeas(ideas.map(idea =>
+        idea.id === editingIdeaId
           ? { ...idea, name: newIdea.name, description: newIdea.description }
           : idea
       ));
@@ -748,7 +963,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
         description: newIdea.description,
         createdAt: new Date().toLocaleDateString('ko-KR')
       }]);
-      
+
       // 검증 데이터 초기화
       setValidationData({
         ...validationData,
@@ -763,7 +978,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
         }
       });
     }
-    
+
     setNewIdea({ name: '', description: '' });
     setShowIdeaModal(false);
   };
@@ -801,7 +1016,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
       alert('먼저 아이디어를 선정해주세요.');
       return;
     }
-    
+
     const newInterview = {
       id: Date.now(),
       name: '',
@@ -811,7 +1026,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
       payment: '',
       memo: ''
     };
-    
+
     setValidationData({
       ...validationData,
       [selectedIdeaId]: {
@@ -908,7 +1123,7 @@ export default function ObservationTracker({ initialTab = 1 }) {
     setIsGeneratingMVP(true);
 
     try {
-      const interviewSummary = validation.interviews.map(int => 
+      const interviewSummary = validation.interviews.map(int =>
         `- ${int.name}: 빈도 ${int.frequency}, 도움도 ${int.helpScore}/10, 지불의향 ${int.payment}`
       ).join('\n');
 
@@ -967,13 +1182,13 @@ JSON만 출력하세요.`;
       const data = await response.json();
       let responseText = data.result;
       responseText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      
+
       const result = JSON.parse(responseText);
       setMvpPlan(result);
-      
+
       // 사용 횟수 증가
       incrementAIUsage();
-      
+
     } catch (error) {
       console.error("MVP 생성 오류:", error);
       alert('MVP 플랜 생성 중 오류가 발생했습니다.');
@@ -1019,7 +1234,7 @@ JSON만 출력하세요.`;
       mvpPlan,
       exportDate: new Date().toISOString()
     };
-    
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1031,12 +1246,12 @@ JSON만 출력하세요.`;
   const importProject = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
         const data = JSON.parse(event.target.result);
-        
+
         const newProject = {
           id: Date.now().toString(),
           name: data.projectName || '가져온 프로젝트',
@@ -1060,7 +1275,7 @@ JSON만 출력하세요.`;
         setCurrentProjectId(newProject.id);
         loadProjectData(newProject);
         await saveProjectToDB(newProject);
-        
+
         alert('프로젝트를 성공적으로 가져왔습니다!');
       } catch (err) {
         alert('파일을 불러오는데 실패했습니다.');
@@ -1087,7 +1302,7 @@ JSON만 출력하세요.`;
           <p className="text-sm text-blue-800 mb-3">
             <strong>목표:</strong> 10개 중 6개 이상 모으기 (하루 2개 × 5일)
           </p>
-          
+
           <div className="space-y-3 text-sm text-blue-800">
             <div>
               <p className="font-semibold mb-1">📱 알림 설정하기:</p>
@@ -1096,7 +1311,7 @@ JSON만 출력하세요.`;
                 <li>평일 저녁 21:00 - "오후 불편 1개"</li>
               </ul>
             </div>
-            
+
             <div>
               <p className="font-semibold mb-1">✍️ 기록 예시:</p>
               <ul className="list-disc list-inside space-y-1 ml-2">
@@ -1105,7 +1320,7 @@ JSON만 출력하세요.`;
                 <li>"운동복 챙기기 귀찮아서 안 감"</li>
               </ul>
             </div>
-            
+
             <div className="bg-green-50 border border-green-300 rounded p-2 mt-2">
               <p className="text-xs font-semibold text-green-800">
                 ✅ 성공 기준: 매일 안 해도 됨! 주말에 몰아서 해도 OK!
@@ -1126,7 +1341,7 @@ JSON만 출력하세요.`;
           <p className="text-sm text-purple-800 mb-3">
             <strong>목표:</strong> 이전 단계의 기록에서 반복되는 것 Top 3 찾기
           </p>
-          
+
           <div className="space-y-3 text-sm text-purple-800">
             <div>
               <p className="font-semibold mb-1">🔍 패턴 예시:</p>
@@ -1137,7 +1352,7 @@ JSON만 출력하세요.`;
                 <li><strong>"확인"</strong> 관련: 일정, 금액, 날씨</li>
               </ul>
             </div>
-            
+
             <div className="bg-white rounded p-3">
               <p className="font-semibold mb-2">📊 분석 방법 (주말 30분):</p>
               <ol className="list-decimal list-inside space-y-1 ml-2">
@@ -1147,7 +1362,7 @@ JSON만 출력하세요.`;
                 <li>Top 3 선정</li>
               </ol>
             </div>
-            
+
             <div className="bg-purple-100 border border-purple-300 rounded p-2 mt-2">
               <p className="text-xs font-semibold text-purple-900">
                 💡 Tip: "같은 불편함"보다는 "같은 종류의 문제"로 묶어보세요!
@@ -1168,7 +1383,7 @@ JSON만 출력하세요.`;
           <p className="text-sm text-green-800 mb-3">
             <strong>목표:</strong> 선정한 아이디어를 실제로 검증하기
           </p>
-          
+
           <div className="space-y-4 text-sm text-green-800">
             <div className="bg-white rounded p-3">
               <p className="font-semibold mb-2">💬 대화로 검증 (5명)</p>
@@ -1215,7 +1430,7 @@ JSON만 출력하세요.`;
           <p className="text-sm text-amber-800 mb-3">
             <strong>목표:</strong> 검증 데이터를 바탕으로 실행 가능한 MVP 테스트 플랜 수립
           </p>
-          
+
           <div className="space-y-3 text-sm text-amber-800">
             <div className="bg-white rounded p-3">
               <p className="font-semibold mb-2">🎯 AI가 제안하는 내용:</p>
@@ -1227,7 +1442,7 @@ JSON만 출력하세요.`;
                 <li>측정 지표 및 성공 기준</li>
               </ul>
             </div>
-            
+
             <div className="bg-amber-100 border border-amber-400 rounded p-2">
               <p className="text-xs font-semibold text-amber-900">
                 💡 Tip: AI 제안을 참고해서 실제로 실행해보세요. 수정도 가능합니다!
@@ -1267,7 +1482,7 @@ JSON만 출력하세요.`;
           >
             <Settings size={18} />
           </button>
-          
+
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 pr-14 md:pr-0">
             <div>
               <div className="flex items-center gap-2 md:gap-3 mb-2">
@@ -1277,12 +1492,56 @@ JSON만 출력하세요.`;
                 </h1>
               </div>
               <p className="text-sm md:text-base text-slate-600">나만의 사업 아이디어 검증 도구</p>
+              {/* 로그인 상태 표시 - 새로 추가됨 */}
+              {user ? (
+                <div className="mt-2 flex items-center gap-2">
+                  {user.picture && (
+                    <img src={user.picture} alt={user.name} className="w-6 h-6 rounded-full" />
+                  )}
+                  <span className="text-xs md:text-sm text-blue-600 font-semibold">
+                    {user.email} (Google Drive 저장)
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs md:text-sm text-amber-600 mt-1">
+                  💾 로컬 저장 (브라우저)
+                </p>
+              )}
+
               {currentProject && (
-                <p className="text-xs md:text-sm text-amber-600 mt-1 font-semibold">
+                <p className="text-xs md:text-sm text-green-600 mt-1 font-semibold">
                   📁 {currentProject.name}
                 </p>
               )}
-              <p className="text-xs md:text-sm text-blue-600 mt-1">
+              {/* ✅ 여기에 추가 */}
+              <div className="flex items-center gap-2 mt-1">
+                {isSaving ? (
+                  <div className="flex items-center gap-1 text-xs text-blue-600">
+                    <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span>저장 중...</span>
+                  </div>
+                ) : lastSaved ? (
+                  <p className="text-xs text-slate-500">
+                    💾 마지막 저장: {lastSaved.toLocaleTimeString('ko-KR')}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    💾 저장 안 됨
+                  </p>
+                )}
+
+                <button
+                  onClick={handleManualSave}
+                  disabled={isSaving || !currentProjectId}
+                  className={`text-xs px-2 py-1 rounded transition ${isSaving || !currentProjectId
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                    }`}
+                >
+                  {isSaving ? '저장 중...' : '저장'}
+                </button>
+              </div>
+              <p className="text-xs md:text-sm text-purple-600 mt-1">
                 📊 카테고리: <strong>{categories.join(', ')}</strong>
               </p>
               {selectedIdea && (
@@ -1293,10 +1552,16 @@ JSON만 출력하세요.`;
             </div>
             <div className="flex gap-2 mt-4 md:mt-0">
               <button
+                onClick={() => navigate('/my-project')}
+                className="flex items-center gap-2 px-3 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition text-sm"
+              >
+                <ArrowLeft size={18} />
+                <span className="hidden md:inline">프로젝트 목록</span>
+              </button>
+              <button
                 onClick={() => setShowGuide(!showGuide)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition text-sm md:text-base ${
-                  showGuide ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
-                }`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition text-sm md:text-base ${showGuide ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                  }`}
               >
                 <BookOpen size={18} />
                 {showGuide ? '가이드 숨기기' : '가이드 보기'}
@@ -1305,24 +1570,21 @@ JSON만 출력하세요.`;
           </div>
 
           {/* Week Tabs - Mobile Responsive */}
-          <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {[
-              { week: 5, label: '내 프로젝트', shortLabel: '프로젝트', icon: '📁' },
               { week: 1, label: '불편함 수집', shortLabel: '불편함' },
               { week: 2, label: '패턴 분석', shortLabel: '패턴' },
               { week: 3, label: '아이디어 검증', shortLabel: '검증' },
               { week: 4, label: 'MVP 테스트(AI)', shortLabel: 'MVP' }
-            ].map(({ week, label, shortLabel, icon }) => (
+            ].map(({ week, label, shortLabel }) => (
               <button
                 key={week}
                 onClick={() => setActiveWeek(week)}
-                className={`py-3 px-2 md:px-4 rounded-lg font-medium transition text-sm md:text-base ${
-                  activeWeek === week
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                className={`py-3 px-2 md:px-4 rounded-lg font-medium transition text-sm md:text-base ${activeWeek === week
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
               >
-                {icon && <span className="mr-1">{icon}</span>}
                 <span className="hidden md:inline">{label}</span>
                 <span className="md:hidden">{shortLabel}</span>
               </button>
@@ -1366,78 +1628,78 @@ JSON만 출력하세요.`;
                 목표: 10개 중 6개 이상 수집 (하루 2개 × 5일)
               </p>
 
-            {/* Input */}
-            <div className="space-y-3 mb-6">
-              <select
-                value={selectedCategory}
-                onChange={(e) => {
-                  if (e.target.value === '__add_new__') {
-                    setShowQuickCategoryModal(true);
-                  } else {
-                    setSelectedCategory(e.target.value);
-                  }
-                }}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">카테고리 선택...</option>
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-                <option value="__add_new__">+ 새 카테고리 추가</option>
-              </select>
-              
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newObs}
-                  onChange={(e) => setNewObs(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addObservation()}
-                  placeholder="오늘 불편했던 것을 한 줄로..."
-                  className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={addObservation}
-                  className="px-4 md:px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center gap-2"
+              {/* Input */}
+              <div className="space-y-3 mb-6">
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => {
+                    if (e.target.value === '__add_new__') {
+                      setShowQuickCategoryModal(true);
+                    } else {
+                      setSelectedCategory(e.target.value);
+                    }
+                  }}
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <Plus size={20} />
-                  <span className="hidden md:inline">추가</span>
-                </button>
+                  <option value="">카테고리 선택...</option>
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                  <option value="__add_new__">+ 새 카테고리 추가</option>
+                </select>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newObs}
+                    onChange={(e) => setNewObs(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addObservation()}
+                    placeholder="오늘 불편했던 것을 한 줄로..."
+                    className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={addObservation}
+                    className="px-4 md:px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center gap-2"
+                  >
+                    <Plus size={20} />
+                    <span className="hidden md:inline">추가</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* List */}
+              <div className="space-y-3">
+                {observations.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    아직 기록이 없습니다. 첫 불편함을 기록해보세요!
+                  </div>
+                ) : (
+                  observations.map(obs => (
+                    <div
+                      key={obs.id}
+                      className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition"
+                    >
+                      <CheckCircle className="text-green-500 mt-1 flex-shrink-0" size={20} />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded font-medium">
+                            {obs.category}
+                          </span>
+                          <span className="text-xs text-slate-500">{obs.date}</span>
+                        </div>
+                        <p className="text-slate-800">{obs.text}</p>
+                      </div>
+                      <button
+                        onClick={() => deleteObservation(obs.id)}
+                        className="text-slate-400 hover:text-red-500 transition"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-
-            {/* List */}
-            <div className="space-y-3">
-              {observations.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
-                  아직 기록이 없습니다. 첫 불편함을 기록해보세요!
-                </div>
-              ) : (
-                observations.map(obs => (
-                  <div
-                    key={obs.id}
-                    className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition"
-                  >
-                    <CheckCircle className="text-green-500 mt-1 flex-shrink-0" size={20} />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded font-medium">
-                          {obs.category}
-                        </span>
-                        <span className="text-xs text-slate-500">{obs.date}</span>
-                      </div>
-                      <p className="text-slate-800">{obs.text}</p>
-                    </div>
-                    <button
-                      onClick={() => deleteObservation(obs.id)}
-                      className="text-slate-400 hover:text-red-500 transition"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
           </div>
         )}
 
@@ -1445,7 +1707,7 @@ JSON만 출력하세요.`;
         {activeWeek === 2 && (
           <div>
             {showGuide && <Week2Guide />}
-            
+
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="flex items-center gap-2 mb-4">
                 <TrendingUp className="text-blue-500" size={24} />
@@ -1479,11 +1741,10 @@ JSON만 출력하세요.`;
                 <button
                   onClick={analyzeWithAI}
                   disabled={(selectedAnalysisCategory === '전체' ? observations.length : observations.filter(obs => obs.category === selectedAnalysisCategory).length) < 3 || isAnalyzing || !canUseAI()}
-                  className={`w-full py-3 px-6 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
-                    (selectedAnalysisCategory === '전체' ? observations.length : observations.filter(obs => obs.category === selectedAnalysisCategory).length) < 3 || isAnalyzing || !canUseAI()
-                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600'
-                  }`}
+                  className={`w-full py-3 px-6 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${(selectedAnalysisCategory === '전체' ? observations.length : observations.filter(obs => obs.category === selectedAnalysisCategory).length) < 3 || isAnalyzing || !canUseAI()
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600'
+                    }`}
                 >
                   {isAnalyzing ? (
                     <>
@@ -1498,11 +1759,10 @@ JSON만 출력하세요.`;
                   )}
                 </button>
                 <div className="mt-2 text-center">
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    getRemainingAIUsage() > 0 
-                      ? 'bg-blue-100 text-blue-700' 
-                      : 'bg-red-100 text-red-700'
-                  }`}>
+                  <span className={`text-xs px-2 py-1 rounded-full ${getRemainingAIUsage() > 0
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-red-100 text-red-700'
+                    }`}>
                     오늘 남은 AI 분석: {getRemainingAIUsage()}/{AI_DAILY_LIMIT}회
                   </span>
                 </div>
@@ -1593,7 +1853,7 @@ JSON만 출력하세요.`;
                 <div className="mb-6">
                   <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                     <Calendar size={18} className="text-blue-500" />
-                    {selectedAnalysisCategory === '전체' ? '전체' : selectedAnalysisCategory} 수집된 불편함 
+                    {selectedAnalysisCategory === '전체' ? '전체' : selectedAnalysisCategory} 수집된 불편함
                     ({(selectedAnalysisCategory === '전체' ? observations : observations.filter(obs => obs.category === selectedAnalysisCategory)).length}개)
                   </h3>
                   <div className="max-h-64 overflow-y-auto space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
@@ -1622,60 +1882,60 @@ JSON만 출력하세요.`;
                   수동으로 패턴 추가하기
                 </h3>
 
-            <button
-              onClick={addPattern}
-              className="mb-6 px-4 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition flex items-center gap-2"
-            >
-              <Plus size={18} />
-              패턴 추가
-            </button>
+                <button
+                  onClick={addPattern}
+                  className="mb-6 px-4 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition flex items-center gap-2"
+                >
+                  <Plus size={18} />
+                  패턴 추가
+                </button>
 
-            <div className="space-y-4">
-              {patterns.filter(p => !aiPatterns.find(ap => ap.id === p.id)).length === 0 && aiPatterns.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 text-sm">
-                  "불편함 데이터 기반 패턴 분석하기"를 클릭하거나<br/>
-                  수동으로 패턴을 추가해보세요
-                </div>
-              ) : (
-                patterns.filter(p => !aiPatterns.find(ap => ap.id === p.id)).map((pattern, idx) => (
-                  <div key={pattern.id} className="p-4 border-2 border-slate-200 rounded-lg">
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className="w-8 h-8 bg-slate-500 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">
-                        {aiPatterns.length + idx + 1}
-                      </div>
-                      <input
-                        type="text"
-                        value={pattern.name}
-                        onChange={(e) => updatePattern(pattern.id, 'name', e.target.value)}
-                        placeholder="패턴 이름 (예: 파일 찾기)"
-                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        type="number"
-                        value={pattern.count}
-                        onChange={(e) => updatePattern(pattern.id, 'count', e.target.value)}
-                        placeholder="빈도"
-                        className="w-20 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button
-                        onClick={() => deletePattern(pattern.id)}
-                        className="text-slate-400 hover:text-red-500 transition"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                <div className="space-y-4">
+                  {patterns.filter(p => !aiPatterns.find(ap => ap.id === p.id)).length === 0 && aiPatterns.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-sm">
+                      "불편함 데이터 기반 패턴 분석하기"를 클릭하거나<br />
+                      수동으로 패턴을 추가해보세요
                     </div>
-                    <textarea
-                      value={pattern.observations}
-                      onChange={(e) => updatePattern(pattern.id, 'observations', e.target.value)}
-                      placeholder="관련된 관찰 내용을 여기에..."
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                      rows={2}
-                    />
-                  </div>
-                ))
-              )}
-            </div>
-            </div>
+                  ) : (
+                    patterns.filter(p => !aiPatterns.find(ap => ap.id === p.id)).map((pattern, idx) => (
+                      <div key={pattern.id} className="p-4 border-2 border-slate-200 rounded-lg">
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="w-8 h-8 bg-slate-500 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">
+                            {aiPatterns.length + idx + 1}
+                          </div>
+                          <input
+                            type="text"
+                            value={pattern.name}
+                            onChange={(e) => updatePattern(pattern.id, 'name', e.target.value)}
+                            placeholder="패턴 이름 (예: 파일 찾기)"
+                            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <input
+                            type="number"
+                            value={pattern.count}
+                            onChange={(e) => updatePattern(pattern.id, 'count', e.target.value)}
+                            placeholder="빈도"
+                            className="w-20 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <button
+                            onClick={() => deletePattern(pattern.id)}
+                            className="text-slate-400 hover:text-red-500 transition"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                        <textarea
+                          value={pattern.observations}
+                          onChange={(e) => updatePattern(pattern.id, 'observations', e.target.value)}
+                          placeholder="관련된 관찰 내용을 여기에..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                          rows={2}
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1684,7 +1944,7 @@ JSON만 출력하세요.`;
         {activeWeek === 3 && (
           <div>
             {showGuide && <Week3Guide />}
-            
+
             {/* 발견된 패턴 표시 */}
             {patterns.length > 0 && (
               <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl p-6 mb-6">
@@ -1695,7 +1955,7 @@ JSON만 출력하세요.`;
                 <p className="text-sm text-purple-700 mb-4">
                   아래 패턴들을 참고해서 아이디어를 선정해보세요!
                 </p>
-                
+
                 <div className="space-y-3">
                   {patterns.map((pattern, idx) => (
                     <div key={pattern.id} className="p-4 bg-white rounded-lg border-2 border-purple-100 hover:border-purple-300 transition">
@@ -1739,7 +1999,7 @@ JSON만 출력하세요.`;
 
                 <div className="mt-4 p-3 bg-purple-100 rounded-lg">
                   <p className="text-xs text-purple-800">
-                    <strong>💡 Tip:</strong> 각 패턴을 해결하는 서비스/제품을 아이디어로 만들어보세요. 
+                    <strong>💡 Tip:</strong> 각 패턴을 해결하는 서비스/제품을 아이디어로 만들어보세요.
                     예: "파일 찾기 어려움" → "AI 기반 파일 검색 도구"
                   </p>
                 </div>
@@ -1758,7 +2018,7 @@ JSON만 출력하세요.`;
                 </p>
               </div>
             )}
-            
+
             {/* 아이디어 선정 */}
             <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
@@ -1786,7 +2046,7 @@ JSON만 출력하세요.`;
                     <h3 className="text-lg font-bold text-slate-800 mb-4">
                       {editingIdeaId ? '아이디어 수정' : '새 아이디어 추가'}
                     </h3>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* 왼쪽: 입력 폼 */}
                       <div className="space-y-4">
@@ -1840,7 +2100,7 @@ JSON만 출력하세요.`;
                           <TrendingUp className="text-purple-600" size={18} />
                           <h4 className="font-bold text-purple-900 text-sm">참고: 발견된 패턴</h4>
                         </div>
-                        
+
                         {patterns.length === 0 ? (
                           <p className="text-xs text-purple-700">
                             패턴 분석 단계를 먼저 완료해보세요!
@@ -1921,7 +2181,7 @@ JSON만 출력하세요.`;
                       </div>
                     </div>
                   ))}
-                  
+
                   {selectedIdeaId && (
                     <button
                       onClick={applySelectedIdea}
@@ -1985,7 +2245,7 @@ JSON만 출력하세요.`;
                             ))}
                           </select>
                         </div>
-                        
+
                         <div className="space-y-3">
                           {/* 질문 1 */}
                           <div>
@@ -2103,7 +2363,7 @@ JSON만 출력하세요.`;
                           onChange={(e) => e.target.files[0] && addImage(key, e.target.files[0])}
                           className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
                         />
-                        
+
                         {currentValidation.onlineValidation[key].images?.length > 0 && (
                           <div className="mt-3 grid grid-cols-3 gap-2">
                             {currentValidation.onlineValidation[key].images.map((img, idx) => (
@@ -2152,7 +2412,7 @@ JSON만 출력하세요.`;
                             추가
                           </button>
                         </div>
-                        
+
                         {currentValidation.onlineValidation[key].videos?.length > 0 && (
                           <div className="mt-3 space-y-2">
                             {currentValidation.onlineValidation[key].videos.map((url, idx) => (
@@ -2203,7 +2463,7 @@ JSON만 출력하세요.`;
         {activeWeek === 4 && (
           <div>
             {showGuide && <Week4Guide />}
-            
+
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Rocket className="text-amber-500" size={24} />
@@ -2232,11 +2492,10 @@ JSON만 출력하세요.`;
                       <button
                         onClick={generateMVPPlan}
                         disabled={isGeneratingMVP || !canUseAI()}
-                        className={`w-full py-4 px-6 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
-                          isGeneratingMVP || !canUseAI()
-                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600'
-                        }`}
+                        className={`w-full py-4 px-6 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${isGeneratingMVP || !canUseAI()
+                          ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600'
+                          }`}
                       >
                         {isGeneratingMVP ? (
                           <>
@@ -2251,11 +2510,10 @@ JSON만 출력하세요.`;
                         )}
                       </button>
                       <div className="mt-2 text-center">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          getRemainingAIUsage() > 0 
-                            ? 'bg-amber-100 text-amber-700' 
-                            : 'bg-red-100 text-red-700'
-                        }`}>
+                        <span className={`text-xs px-2 py-1 rounded-full ${getRemainingAIUsage() > 0
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-red-100 text-red-700'
+                          }`}>
                           오늘 남은 AI 분석: {getRemainingAIUsage()}/{AI_DAILY_LIMIT}회
                         </span>
                       </div>
@@ -2318,7 +2576,7 @@ JSON만 출력하세요.`;
                       {/* 테스트 플랜 */}
                       <div className="p-4 bg-slate-50 border-2 border-slate-200 rounded-lg">
                         <h3 className="font-bold text-slate-800 mb-4">🧪 구체적 테스트 플랜</h3>
-                        
+
                         <div className="space-y-4">
                           <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -2413,319 +2671,6 @@ JSON만 출력하세요.`;
           </div>
         )}
 
-        {/* 5단계: 내 프로젝트 */}
-        {activeWeek === 5 && (
-          <div>
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <Calendar className="text-blue-500" size={24} />
-                  <h2 className="text-xl font-bold text-slate-800">내 프로젝트 ({projects.length}개)</h2>
-                </div>
-                <button
-                  onClick={openNewProjectModal}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center gap-2"
-                >
-                  <Plus size={18} />
-                  새 프로젝트
-                </button>
-              </div>
-
-              {projects.length === 0 ? (
-                <div className="text-center py-12">
-                  <Calendar className="mx-auto text-slate-300 mb-4" size={64} />
-                  <p className="text-slate-500 mb-4">프로젝트가 없습니다.</p>
-                  <button
-                    onClick={openNewProjectModal}
-                    className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-                  >
-                    첫 프로젝트 시작하기
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {projects.map(project => {
-                    const isCurrent = project.id === currentProjectId;
-                    const obsCount = project.data.observations?.length || 0;
-                    const patternCount = project.data.patterns?.length || 0;
-                    const ideaCount = project.data.ideas?.length || 0;
-                    
-                    return (
-                      <div
-                        key={project.id}
-                        className={`p-5 rounded-xl border-2 transition ${
-                          isCurrent
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-slate-200 hover:border-blue-300 bg-white'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <div className="flex gap-2 mb-1">
-                              <input
-                                type="text"
-                                value={editingProjectId === project.id ? tempProjectName : project.name}
-                                onChange={(e) => editingProjectId === project.id && setTempProjectName(e.target.value)}
-                                onKeyPress={(e) => {
-                                  if (e.key === 'Enter' && editingProjectId === project.id) {
-                                    saveProjectName(project.id);
-                                  }
-                                }}
-                                disabled={editingProjectId !== project.id}
-                                className={`text-lg font-bold flex-1 px-2 py-1 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                  editingProjectId === project.id
-                                    ? isCurrent
-                                      ? 'bg-white border-blue-300'
-                                      : 'bg-white border-slate-300'
-                                    : isCurrent
-                                      ? 'bg-blue-50 border-blue-200 text-slate-700 cursor-not-allowed'
-                                      : 'bg-slate-100 border-slate-200 text-slate-600 cursor-not-allowed'
-                                }`}
-                              />
-                              {editingProjectId === project.id ? (
-                                <>
-                                  <button
-                                    onClick={() => saveProjectName(project.id)}
-                                    className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-                                    title="저장"
-                                  >
-                                    <CheckCircle size={16} />
-                                  </button>
-                                  <button
-                                    onClick={cancelEditingProject}
-                                    className="px-2 py-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition"
-                                    title="취소"
-                                  >
-                                    ✕
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  onClick={() => startEditingProject(project.id, project.name)}
-                                  className="px-2 py-1 bg-slate-200 text-slate-700 rounded hover:bg-slate-300 transition"
-                                  title="수정"
-                                >
-                                  <Edit2 size={16} />
-                                </button>
-                              )}
-                            </div>
-                            <div className="text-xs text-slate-500 space-y-1">
-                              <div>생성: {new Date(project.createdAt).toLocaleDateString('ko-KR')}</div>
-                              <div>수정: {new Date(project.updatedAt).toLocaleDateString('ko-KR')}</div>
-                            </div>
-                          </div>
-                          {isCurrent && (
-                            <span className="ml-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full">
-                              현재
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="mb-4 p-3 bg-slate-50 rounded-lg">
-                          <div className="text-sm font-semibold text-slate-700 mb-2">
-                            진행 상황: {project.currentWeek}단계
-                          </div>
-                          <div className="grid grid-cols-3 gap-2 text-xs">
-                            <div className="text-center">
-                              <div className="font-bold text-blue-600">{obsCount}</div>
-                              <div className="text-slate-500">불편함</div>
-                            </div>
-                            <div className="text-center">
-                              <div className="font-bold text-purple-600">{patternCount}</div>
-                              <div className="text-slate-500">패턴</div>
-                            </div>
-                            <div className="text-center">
-                              <div className="font-bold text-amber-600">{ideaCount}</div>
-                              <div className="text-slate-500">아이디어</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          {!isCurrent && (
-                            <button
-                              onClick={() => switchProject(project.id)}
-                              className="px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition"
-                            >
-                              열기
-                            </button>
-                          )}
-                          {isCurrent && (
-                            <button
-                              disabled
-                              className="px-3 py-2 bg-slate-200 text-slate-400 text-sm rounded-lg cursor-not-allowed"
-                            >
-                              작업 중
-                            </button>
-                          )}
-                          <button
-                            onClick={() => duplicateProject(project.id)}
-                            className="px-3 py-2 bg-green-100 text-green-700 text-sm rounded-lg hover:bg-green-200 transition"
-                          >
-                            복사
-                          </button>
-                          <button
-                            onClick={() => {
-                              console.log('삭제 버튼 클릭됨, 프로젝트 ID:', project.id);
-                              confirmDeleteProject(project.id);
-                            }}
-                            className="px-3 py-2 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200 transition"
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              
-              <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-                <h3 className="font-bold text-blue-900 mb-2">💡 프로젝트 관리 팁</h3>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• <strong>자동 저장:</strong> 모든 변경사항은 자동으로 저장됩니다</li>
-                  <li>• <strong>여러 프로젝트:</strong> 동시에 여러 아이디어를 실험해보세요</li>
-                  <li>• <strong>복사:</strong> 비슷한 아이디어는 기존 프로젝트를 복사해서 시작하세요</li>
-                </ul>
-              </div>
-            </div>
-
-            {/* 삭제 확인 모달 */}
-            {projectToDelete && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-xl p-6 max-w-md w-full">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                      <Trash2 className="text-red-600" size={24} />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-800">프로젝트 삭제</h3>
-                      <p className="text-sm text-slate-600">
-                        {projects.find(p => p.id === projectToDelete)?.name}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <p className="text-slate-700 mb-6">
-                    이 프로젝트를 삭제하시겠습니까?<br/>
-                    <strong className="text-red-600">모든 데이터가 영구적으로 삭제됩니다.</strong>
-                  </p>
-                  
-                  <div className="flex gap-3">
-                    <button
-                      onClick={cancelDelete}
-                      className="flex-1 px-4 py-3 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition font-semibold"
-                    >
-                      취소
-                    </button>
-                    <button
-                      onClick={deleteProject}
-                      className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition font-semibold"
-                    >
-                      삭제하기
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 새 프로젝트 생성 모달 */}
-            {showNewProjectModal && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-xl p-6 max-w-md w-full">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Plus className="text-blue-600" size={24} />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-800">새 프로젝트 만들기</h3>
-                    </div>
-                  </div>
-                  
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      프로젝트 이름
-                    </label>
-                    <input
-                      type="text"
-                      value={newProjectName}
-                      onChange={(e) => setNewProjectName(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleCreateProject()}
-                      placeholder="예: 직장인 시간관리 문제 탐색"
-                      className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      autoFocus
-                    />
-                  </div>
-
-                  <div className="mb-6 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-sm text-blue-800 flex items-start gap-2">
-                      <span className="text-blue-500 mt-0.5">💡</span>
-                      <span>프로젝트를 생성하면, 자동으로 <strong>불편함 수집 단계</strong>로 이동됩니다.</span>
-                    </p>
-                  </div>
-                  
-                  <div className="flex gap-3">
-                    <button
-                      onClick={closeNewProjectModal}
-                      className="flex-1 px-4 py-3 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition font-semibold"
-                    >
-                      취소
-                    </button>
-                    <button
-                      onClick={handleCreateProject}
-                      className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold"
-                    >
-                      만들기
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 빠른 카테고리 추가 모달 */}
-            {showQuickCategoryModal && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-xl p-6 max-w-sm w-full">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <Plus className="text-green-600" size={20} />
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-800">새 카테고리 추가</h3>
-                  </div>
-                  
-                  <input
-                    type="text"
-                    value={quickCategoryName}
-                    onChange={(e) => setQuickCategoryName(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addQuickCategory()}
-                    placeholder="예: 건강 관리, 취미 생활..."
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 mb-4"
-                    autoFocus
-                  />
-                  
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        setShowQuickCategoryModal(false);
-                        setQuickCategoryName('');
-                      }}
-                      className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition font-medium"
-                    >
-                      취소
-                    </button>
-                    <button
-                      onClick={addQuickCategory}
-                      className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-medium"
-                    >
-                      추가
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Timeline Summary */}
         <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
           <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -2774,11 +2719,11 @@ JSON만 출력하세요.`;
         {showSettings && (
           <>
             {/* 오버레이 */}
-            <div 
+            <div
               className="fixed inset-0 bg-black bg-opacity-50 z-40"
               onClick={() => setShowSettings(false)}
             />
-            
+
             {/* 설정 패널 */}
             <div className="fixed top-0 right-0 h-full w-full md:w-96 bg-white shadow-2xl z-50 overflow-y-auto">
               <div className="p-6">
@@ -2807,66 +2752,117 @@ JSON만 출력하세요.`;
                     프로필
                   </h3>
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        이름
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={isEditingName ? tempUserName : userName}
-                          onChange={(e) => isEditingName && setTempUserName(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && isEditingName && saveUserName()}
-                          placeholder="이름을 입력하세요"
-                          disabled={!isEditingName}
-                          className={`flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                            isEditingName 
-                              ? 'border-slate-300 bg-white' 
-                              : 'border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed'
-                          }`}
-                        />
-                        {isEditingName ? (
-                          <>
-                            <button
-                              onClick={saveUserName}
-                              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center gap-1"
-                              title="저장"
-                            >
-                              <CheckCircle size={18} />
-                            </button>
-                            {userName && (
-                              <button
-                                onClick={cancelEditingName}
-                                className="px-4 py-2 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition"
-                                title="취소"
-                              >
-                                ✕
-                              </button>
-                            )}
-                          </>
-                        ) : (
-                          <button
-                            onClick={startEditingName}
-                            className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition flex items-center gap-1"
-                            title="수정"
-                          >
-                            <Edit2 size={18} />
-                          </button>
-                        )}
+                    {/* Google 로그인 상태 */}
+                    {user ? (
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center gap-3 mb-3">
+                          {user.picture && (
+                            <img src={user.picture} alt={user.name} className="w-12 h-12 rounded-full" />
+                          )}
+                          <div>
+                            <div className="font-semibold text-slate-800">{user.name}</div>
+                            <div className="text-sm text-slate-600">{user.email}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-blue-700 mb-3">
+                          <CheckCircle size={16} />
+                          <span>Google Drive에 자동 저장 중</span>
+                        </div>
+                        <button
+                          onClick={handleGoogleLogout}
+                          className="w-full px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition font-medium flex items-center justify-center gap-2"
+                        >
+                          <LogOut size={18} />
+                          로그아웃
+                        </button>
                       </div>
-                    </div>
-                    <div>
-                      <button
-                        disabled
-                        className="w-full px-4 py-3 bg-slate-200 text-slate-400 rounded-lg cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        <span>🔐</span>
-                        Google로 로그인 (준비 중)
-                      </button>
-                      <p className="text-xs text-slate-500 mt-2 text-center">
-                        곧 로그인 기능이 추가됩니다!
-                      </p>
-                    </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={handleGoogleLogin}
+                          disabled={isLoggingIn}
+                          className="w-full px-4 py-3 bg-white border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition flex items-center justify-center gap-2 font-semibold"
+                        >
+                          {isLoggingIn ? (
+                            <>
+                              <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                              로그인 중...
+                            </>
+                          ) : (
+                            <>
+                              <LogIn size={18} />
+                              Google로 로그인
+                            </>
+                          )}
+                        </button>
+                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                          <p className="text-xs text-amber-800">
+                            <strong>💡 Google 로그인 시:</strong>
+                            <br />• Google Drive에 자동 저장
+                            <br />• 여러 기기에서 동기화
+                            <br />• 데이터 안전하게 보관
+                          </p>
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <p className="text-xs text-slate-600">
+                            <strong>현재 저장 방식:</strong> 브라우저 로컬 저장
+                            <br />• 이 브라우저에서만 접근 가능
+                            <br />• 브라우저 데이터 삭제 시 사라짐
+                          </p>
+                        </div>
+                      </>
+                    )}
+
+                    {/* 이름 설정 (로그인하지 않은 경우만) */}
+                    {!user && (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          이름 (선택)
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={isEditingName ? tempUserName : userName}
+                            onChange={(e) => isEditingName && setTempUserName(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && isEditingName && saveUserName()}
+                            placeholder="이름을 입력하세요"
+                            disabled={!isEditingName}
+                            className={`flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${isEditingName
+                              ? 'border-slate-300 bg-white'
+                              : 'border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed'
+                              }`}
+                          />
+                          {isEditingName ? (
+                            <>
+                              <button
+                                onClick={saveUserName}
+                                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center gap-1"
+                                title="저장"
+                              >
+                                <CheckCircle size={18} />
+                              </button>
+                              {userName && (
+                                <button
+                                  onClick={cancelEditingName}
+                                  className="px-4 py-2 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition"
+                                  title="취소"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <button
+                              onClick={startEditingName}
+                              className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition flex items-center gap-1"
+                              title="수정"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -2878,7 +2874,7 @@ JSON만 출력하세요.`;
                     </div>
                     카테고리 관리
                   </h3>
-                  
+
                   <div className="space-y-3 mb-4">
                     {categories.map(cat => (
                       <div key={cat} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
@@ -2947,14 +2943,12 @@ JSON만 출력하세요.`;
                         </div>
                         <button
                           onClick={toggleAutoBackup}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            autoBackup ? 'bg-blue-500' : 'bg-slate-300'
-                          }`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoBackup ? 'bg-blue-500' : 'bg-slate-300'
+                            }`}
                         >
                           <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              autoBackup ? 'translate-x-6' : 'translate-x-1'
-                            }`}
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoBackup ? 'translate-x-6' : 'translate-x-1'
+                              }`}
                           />
                         </button>
                       </div>

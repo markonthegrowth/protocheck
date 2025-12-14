@@ -1,8 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Rocket, Search, TrendingUp, Users, CheckCircle, ArrowRight, Lightbulb, Target, Zap, ChevronDown, Eye, BookOpen, Coffee, MapPin } from 'lucide-react';
+import { isLoggedIn, getSavedUserInfo } from './utils/firebaseAuth';
 
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState(null);
+  const [user, setUser] = useState(null);  // ← 추가
+
+  useEffect(() => {  // ← 추가
+    if (isLoggedIn()) {
+      const savedUser = getSavedUserInfo();
+      if (savedUser) {
+        setUser(savedUser);
+      }
+    }
+  }, []);
 
   const scrollToSection = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -23,11 +34,11 @@ export default function LandingPage() {
             <button onClick={() => scrollToSection('features')} className="text-slate-600 hover:text-slate-900 transition">기능</button>
             <button onClick={() => scrollToSection('faq')} className="text-slate-600 hover:text-slate-900 transition">FAQ</button>
           </div>
-          <a 
-            href="/my-project" 
+          <a
+            href={user ? "/my-project" : "/login"}
             className="px-5 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-600 hover:to-purple-700 transition shadow-lg shadow-blue-500/25"
           >
-            시작하기
+            {user ? `${user.name}님의 프로젝트` : '시작하기'}
           </a>
         </div>
       </nav>
@@ -39,29 +50,29 @@ export default function LandingPage() {
             <BookOpen size={16} />
             《관찰의 힘》에서 영감을 받은 아이디어 검증 도구
           </div>
-          
+
           <h1 className="text-4xl md:text-6xl font-bold text-slate-900 mb-6 leading-tight">
-            평범한 일상 속에<br/>
+            평범한 일상 속에<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">
               숨겨진 사업 기회
             </span>
           </h1>
-          
+
           <p className="text-xl text-slate-600 mb-8 max-w-2xl mx-auto leading-relaxed">
-            혁신은 멀리 있지 않습니다.<br/>
-            매일 겪는 불편함을 관찰하고 기록하면,<br/>
+            혁신은 멀리 있지 않습니다.<br />
+            매일 겪는 불편함을 관찰하고 기록하면,<br />
             그 안에서 사업 아이디어가 보이기 시작합니다.
           </p>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a 
-              href="/my-project" 
+            <a
+              href="/login"
               className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold text-lg hover:from-blue-600 hover:to-purple-700 transition shadow-xl shadow-blue-500/25 flex items-center justify-center gap-2"
             >
               관찰 시작하기
               <ArrowRight size={20} />
             </a>
-            <button 
+            <button
               onClick={() => scrollToSection('philosophy')}
               className="px-8 py-4 bg-white text-slate-700 rounded-xl font-semibold text-lg border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition"
             >
@@ -96,7 +107,7 @@ export default function LandingPage() {
               Hidden in Plain Sight
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-6">
-              "평범한 것을 관찰하는 데는<br/>전문가가 될 수 있다"
+              "평범한 것을 관찰하는 데는<br />전문가가 될 수 있다"
             </h2>
             <p className="text-slate-400 text-lg max-w-2xl mx-auto">
               — 얀 칩체이스, 《관찰의 힘》 저자
@@ -109,8 +120,8 @@ export default function LandingPage() {
               <div className="text-3xl mb-4">👀</div>
               <h3 className="text-xl font-bold mb-3">관찰의 힘</h3>
               <p className="text-slate-400 leading-relaxed">
-                얀 칩체이스는 전 세계를 돌아다니며 사람들의 <strong className="text-white">평범한 일상</strong>을 관찰합니다. 
-                휴대전화를 받는 모습, 지갑에서 현금을 꺼내는 모습... 
+                얀 칩체이스는 전 세계를 돌아다니며 사람들의 <strong className="text-white">평범한 일상</strong>을 관찰합니다.
+                휴대전화를 받는 모습, 지갑에서 현금을 꺼내는 모습...
                 이런 사소한 행동에서 <strong className="text-white">아직 개척되지 않은 시장</strong>의 문을 찾습니다.
               </p>
             </div>
@@ -118,8 +129,8 @@ export default function LandingPage() {
               <div className="text-3xl mb-4">🔍</div>
               <h3 className="text-xl font-bold mb-3">Why를 찾아라</h3>
               <p className="text-slate-400 leading-relaxed">
-                "What"과 "How"가 아닌 <strong className="text-white">"Why"</strong>를 이해하는 것이 핵심입니다. 
-                사람들이 <strong className="text-white">왜</strong> 불편해하는지, <strong className="text-white">왜</strong> 그런 행동을 하는지 
+                "What"과 "How"가 아닌 <strong className="text-white">"Why"</strong>를 이해하는 것이 핵심입니다.
+                사람들이 <strong className="text-white">왜</strong> 불편해하는지, <strong className="text-white">왜</strong> 그런 행동을 하는지
                 파고들면 진짜 기회가 보입니다.
               </p>
             </div>
@@ -127,8 +138,8 @@ export default function LandingPage() {
               <div className="text-3xl mb-4">📍</div>
               <h3 className="text-xl font-bold mb-3">한계치를 찾아라</h3>
               <p className="text-slate-400 leading-relaxed">
-                사람들이 "참을 수 있는 최대/최소 한계"가 있습니다. 
-                이 <strong className="text-white">컴포트 존의 경계</strong>에서 
+                사람들이 "참을 수 있는 최대/최소 한계"가 있습니다.
+                이 <strong className="text-white">컴포트 존의 경계</strong>에서
                 새로운 제품과 서비스의 기회가 탄생합니다.
               </p>
             </div>
@@ -136,8 +147,8 @@ export default function LandingPage() {
               <div className="text-3xl mb-4">💡</div>
               <h3 className="text-xl font-bold mb-3">본질을 꿰뚫어라</h3>
               <p className="text-slate-400 leading-relaxed">
-                "원래 그런 것"이라고 생각하면 본질을 놓칩니다. 
-                <strong className="text-white">당연하게 여기는 것에 질문</strong>을 던지면 
+                "원래 그런 것"이라고 생각하면 본질을 놓칩니다.
+                <strong className="text-white">당연하게 여기는 것에 질문</strong>을 던지면
                 혁신의 발화점을 찾을 수 있습니다.
               </p>
             </div>
@@ -146,7 +157,7 @@ export default function LandingPage() {
           {/* Quote */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-center">
             <p className="text-xl md:text-2xl font-medium leading-relaxed mb-4">
-              "혁신의 발화점은<br/>주변의 평범한 것에 있다"
+              "혁신의 발화점은<br />주변의 평범한 것에 있다"
             </p>
             <p className="text-blue-200">
               ProtoCheck은 이 철학을 도구로 만들었습니다.
@@ -164,7 +175,7 @@ export default function LandingPage() {
           <p className="text-center text-slate-600 mb-12">
             관찰의 힘을 알아도, 실천하기가 어렵습니다
           </p>
-          
+
           <div className="grid md:grid-cols-3 gap-6">
             {[
               { emoji: "🤔", title: "뭘 관찰해야 하지?", text: "일상이 너무 익숙해서 뭘 봐야 할지 모르겠어" },
@@ -178,10 +189,10 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          
+
           <div className="mt-12 text-center">
             <p className="text-xl text-slate-700">
-              ProtoCheck은 <span className="font-bold text-blue-600">관찰 → 기록 → 분석 → 검증</span>까지<br/>
+              ProtoCheck은 <span className="font-bold text-blue-600">관찰 → 기록 → 분석 → 검증</span>까지<br />
               체계적인 프레임워크를 제공합니다.
             </p>
           </div>
@@ -199,7 +210,7 @@ export default function LandingPage() {
               일상의 불편함에서 검증된 사업 아이디어까지
             </p>
           </div>
-          
+
           <div className="space-y-8">
             {[
               {
@@ -240,27 +251,24 @@ export default function LandingPage() {
               }
             ].map((item, idx) => (
               <div key={idx} className={`flex flex-col md:flex-row gap-6 items-start ${idx % 2 === 1 ? 'md:flex-row-reverse' : ''}`}>
-                <div className={`w-full md:w-2/3 p-8 rounded-2xl ${
-                  item.color === 'blue' ? 'bg-blue-50' :
+                <div className={`w-full md:w-2/3 p-8 rounded-2xl ${item.color === 'blue' ? 'bg-blue-50' :
                   item.color === 'purple' ? 'bg-purple-50' :
-                  item.color === 'green' ? 'bg-green-50' :
-                  'bg-amber-50'
-                }`}>
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${
-                    item.color === 'blue' ? 'bg-blue-500' :
-                    item.color === 'purple' ? 'bg-purple-500' :
-                    item.color === 'green' ? 'bg-green-500' :
-                    'bg-amber-500'
+                    item.color === 'green' ? 'bg-green-50' :
+                      'bg-amber-50'
                   }`}>
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${item.color === 'blue' ? 'bg-blue-500' :
+                    item.color === 'purple' ? 'bg-purple-500' :
+                      item.color === 'green' ? 'bg-green-500' :
+                        'bg-amber-500'
+                    }`}>
                     <item.icon className="text-white" size={24} />
                   </div>
                   <div className="flex items-center gap-3 mb-2">
-                    <span className={`text-sm font-bold px-2 py-1 rounded ${
-                      item.color === 'blue' ? 'bg-blue-200 text-blue-800' :
+                    <span className={`text-sm font-bold px-2 py-1 rounded ${item.color === 'blue' ? 'bg-blue-200 text-blue-800' :
                       item.color === 'purple' ? 'bg-purple-200 text-purple-800' :
-                      item.color === 'green' ? 'bg-green-200 text-green-800' :
-                      'bg-amber-200 text-amber-800'
-                    }`}>STEP {item.step}</span>
+                        item.color === 'green' ? 'bg-green-200 text-green-800' :
+                          'bg-amber-200 text-amber-800'
+                      }`}>STEP {item.step}</span>
                     <span className="text-slate-500 text-sm">{item.subtitle}</span>
                   </div>
                   <h3 className="text-2xl font-bold text-slate-900 mb-3">{item.title}</h3>
@@ -268,12 +276,11 @@ export default function LandingPage() {
                   <p className="text-sm text-slate-500 bg-white/50 rounded-lg px-4 py-2">{item.tip}</p>
                 </div>
                 <div className="hidden md:flex w-1/3 justify-center items-center">
-                  <div className={`w-24 h-24 rounded-full flex items-center justify-center text-5xl font-bold ${
-                    item.color === 'blue' ? 'bg-blue-100 text-blue-500' :
+                  <div className={`w-24 h-24 rounded-full flex items-center justify-center text-5xl font-bold ${item.color === 'blue' ? 'bg-blue-100 text-blue-500' :
                     item.color === 'purple' ? 'bg-purple-100 text-purple-500' :
-                    item.color === 'green' ? 'bg-green-100 text-green-500' :
-                    'bg-amber-100 text-amber-500'
-                  }`}>
+                      item.color === 'green' ? 'bg-green-100 text-green-500' :
+                        'bg-amber-100 text-amber-500'
+                    }`}>
                     {item.step}
                   </div>
                 </div>
@@ -291,7 +298,7 @@ export default function LandingPage() {
               관찰을 도와주는 기능들
             </h2>
           </div>
-          
+
           <div className="grid md:grid-cols-3 gap-8">
             {[
               {
@@ -367,7 +374,7 @@ export default function LandingPage() {
               자주 묻는 질문
             </h2>
           </div>
-          
+
           <div className="space-y-4">
             {[
               {
@@ -419,7 +426,7 @@ export default function LandingPage() {
                 얀 칩체이스, 사이먼 슈타인하트 지음
               </p>
               <p className="text-sm text-slate-500">
-                ProtoCheck은 이 책의 철학에서 영감을 받아 만들었습니다.<br/>
+                ProtoCheck은 이 책의 철학에서 영감을 받아 만들었습니다.<br />
                 관찰의 깊이를 더하고 싶다면 일독을 권합니다.
               </p>
             </div>
@@ -434,11 +441,11 @@ export default function LandingPage() {
             오늘부터 관찰을 시작하세요
           </h2>
           <p className="text-xl text-blue-100 mb-8">
-            지금 느낀 불편함이<br/>
+            지금 느낀 불편함이<br />
             내일의 사업 아이디어가 됩니다.
           </p>
-          <a 
-            href="/my-project" 
+          <a
+            href="/my-project"
             className="inline-flex items-center gap-2 px-8 py-4 bg-white text-blue-600 rounded-xl font-semibold text-lg hover:bg-blue-50 transition shadow-xl"
           >
             무료로 시작하기
